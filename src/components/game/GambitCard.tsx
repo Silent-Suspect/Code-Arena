@@ -1,8 +1,8 @@
 // Gambit Card Component - Displays a single gambit configuration
-// Now interactive in PREPARATION mode
+// Phase 5: With DODGE and CHARGE actions
 import type { Gambit } from '../../engine/types';
 import { cn } from '../ui/cn';
-import { Target, Zap, Shield, Clock, Edit2 } from 'lucide-react';
+import { Target, Zap, Shield, Clock, Edit2, Wind, Battery } from 'lucide-react';
 
 interface GambitCardProps {
     gambit: Gambit;
@@ -13,30 +13,37 @@ interface GambitCardProps {
 }
 
 const conditionLabels: Record<Gambit['condition'], string> = {
-    'ALWAYS': 'Always',
+    'ALWAYS': 'Immer',
     'HP_BELOW_30': 'HP < 30%',
-    'ENEMY_IS_BLOCKING': 'Enemy Blocking',
-    'MANA_FULL': 'Mana Full'
+    'HP_BELOW_50': 'HP < 50%',
+    'ENEMY_HP_ABOVE_50': 'Gegner HP > 50%',
+    'ENEMY_IS_BLOCKING': 'Gegner blockt',
+    'MANA_FULL': 'Mana voll'
 };
 
 const targetLabels: Record<Gambit['target'], string> = {
-    'SELF': 'Self',
-    'ALLY_LOWEST_HP': 'Ally (Low HP)',
-    'ENEMY_CLOSEST': 'Nearest Enemy',
-    'ENEMY_LOWEST_HP': 'Enemy (Low HP)'
+    'SELF': 'Selbst',
+    'ALLY_LOWEST_HP': 'Verbündeter (niedrige HP)',
+    'ENEMY_CLOSEST': 'Nächster Gegner',
+    'ENEMY_LOWEST_HP': 'Gegner (niedrige HP)',
+    'ENEMY_STRONGEST': 'Stärkster Gegner'
 };
 
 const actionLabels: Record<Gambit['action'], string> = {
-    'ATTACK': 'Attack',
-    'HEAL': 'Heal',
-    'BLOCK': 'Block',
-    'WAIT': 'Wait'
+    'ATTACK': 'Angriff',
+    'HEAL': 'Heilen',
+    'BLOCK': 'Blocken',
+    'DODGE': 'Ausweichen',
+    'CHARGE': 'Aufladen',
+    'WAIT': 'Warten'
 };
 
 const actionIcons: Record<Gambit['action'], typeof Zap> = {
     'ATTACK': Zap,
     'HEAL': Shield,
     'BLOCK': Target,
+    'DODGE': Wind,
+    'CHARGE': Battery,
     'WAIT': Clock
 };
 
@@ -67,10 +74,9 @@ export function GambitCard({ gambit, index, isEditable = false, isTriggered = fa
 
             {/* Gambit Info */}
             <div className="flex-1 flex flex-col gap-1 min-w-0">
-                {/* Condition -> Target -> Action flow */}
                 <div className="flex items-center gap-2 text-sm flex-wrap">
                     <span className="text-amber-400 font-medium">
-                        IF {conditionLabels[gambit.condition]}
+                        WENN {conditionLabels[gambit.condition]}
                     </span>
                     <span className="text-gray-500">→</span>
                     <span className="text-cyan-400">
@@ -82,6 +88,8 @@ export function GambitCard({ gambit, index, isEditable = false, isTriggered = fa
                         gambit.action === 'ATTACK' && "text-red-400",
                         gambit.action === 'HEAL' && "text-emerald-400",
                         gambit.action === 'BLOCK' && "text-blue-400",
+                        gambit.action === 'DODGE' && "text-cyan-400",
+                        gambit.action === 'CHARGE' && "text-amber-400",
                         gambit.action === 'WAIT' && "text-gray-400"
                     )}>
                         <ActionIcon size={14} />

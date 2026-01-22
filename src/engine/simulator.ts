@@ -1,6 +1,5 @@
 // Battle Simulator - Pure TypeScript, NO React imports
-// Deterministic game logic for Cat-Command Dungeon
-// Phase 4: RNG Variance & Sudden Death (Hunger)
+// Phase 5: Advanced Tactics with Dodge & Charge
 
 import type { BattleState, Unit, Gambit, ActionType, TargetType } from './types';
 import { getEnemiesForRoom, getRoomDescription } from './mockData';
@@ -10,22 +9,17 @@ import { getEnemiesForRoom, getRoomDescription } from './mockData';
 // ==========================================
 
 const HUNGER_START_ROUND = 20;
-const BASE_HEAL_AMOUNT = 10;
+const BASE_HEAL_AMOUNT = 12;
+const CHARGE_MULTIPLIER = 3;
 
 // ==========================================
 // RNG HELPERS
 // ==========================================
 
-/**
- * Get a random multiplier between 0.8 and 1.2
- */
 function getVarianceMultiplier(): number {
     return 0.8 + Math.random() * 0.4;
 }
 
-/**
- * Determine hit quality for logging
- */
 function getHitQuality(multiplier: number): string {
     if (multiplier >= 1.1) return ' (KRIT!)';
     if (multiplier <= 0.9) return ' (Streifer)';
@@ -48,8 +42,12 @@ function evaluateCondition(gambit: Gambit, unit: Unit, state: BattleState): bool
             return true;
         case 'HP_BELOW_30':
             return (unit.stats.hp / unit.stats.maxHp) < 0.3;
+        case 'HP_BELOW_50':
+            return (unit.stats.hp / unit.stats.maxHp) < 0.5;
+        case 'ENEMY_HP_ABOVE_50':
+            return livingEnemies.some(e => (e.stats.hp / e.stats.maxHp) > 0.5);
         case 'ENEMY_IS_BLOCKING':
-            return livingEnemies.some(e => e.isBlocking);
+            return livingEnemies.some(e => e.statusEffects.isBlocking);
         case 'MANA_FULL':
             return true;
         default:
@@ -88,13 +86,18 @@ function resolveTarget(
             return livingEnemies.reduce((lowest, current) =>
                 current.stats.hp < lowest.stats.hp ? current : lowest
             );
+        case 'ENEMY_STRONGEST':
+            if (livingEnemies.length === 0) return null;
+            return livingEnemies.reduce((strongest, current) =>
+                current.stats.atk > strongest.stats.atk ? current : strongest
+            );
         default:
             return null;
     }
 }
 
 // ==========================================
-// ACTION EXECUTION WITH VARIANCE
+// ACTION EXECUTION
 // ==========================================
 
 const attackVerbs = ['kratzt', 'springt auf', 'beißt', 'schlägt', 'faucht'];
@@ -112,18 +115,41 @@ function executeAction(
 ): void {
     switch (action) {
         case 'ATTACK': {
-            const multiplier = getVarianceMultiplier();
+            // Check if target is dodging
+            if (target.statusEffects.isDodging) {
+                log.push(`💨 ${attacker.emoji} ${attacker.name} greift an... aber ${target.emoji} ${target.name} weicht aus!`);
+                return;
+            }
+
+            // Calculate damage with variance
+            let multiplier = getVarianceMultiplier();
+            let chargeBonus = '';
+
+            // Check if attacker is charged (3x damage)
+            if (attacker.statusEffects.isCharged) {
+                multiplier *= CHARGE_MULTIPLIER;
+                attacker.statusEffects.isCharged = false;
+                chargeBonus = ' 💥AUFGELADEN!';
+            }
+
             const rawDamage = Math.floor(attacker.stats.atk * multiplier);
-            const blockReduction = target.isBlocking ? 0.5 : 1;
-            const finalDamage = Math.max(1, Math.floor((rawDamage - target.stats.def) * blockReduction));
+
+            // Block reduces damage significantly
+            let finalDamage: number;
+            let blockText = '';
+            if (target.statusEffects.isBlocking) {
+                finalDamage = Math.max(1, rawDamage - target.stats.def * 2);
+                blockText = ' [GEBLOCKT]';
+            } else {
+                finalDamage = Math.max(1, rawDamage - target.stats.def);
+            }
 
             target.stats.hp = Math.max(0, target.stats.hp - finalDamage);
 
             const verb = getRandomVerb(attackVerbs);
-            const quality = getHitQuality(multiplier);
-            const blockedText = target.isBlocking ? ' [BLOCK]' : '';
+            const quality = getHitQuality(multiplier / (attacker.statusEffects.isCharged ? 1 : CHARGE_MULTIPLIER));
 
-            log.push(`${attacker.emoji} ${attacker.name} ${verb} ${target.emoji} ${target.name} für ${finalDamage} DMG${quality}${blockedText}`);
+            log.push(`${attacker.emoji} ${attacker.name} ${verb} ${target.emoji} ${target.name} für ${finalDamage} DMG${chargeBonus}${quality}${blockText}`);
 
             if (target.stats.hp <= 0) {
                 target.isDead = true;
@@ -131,6 +157,7 @@ function executeAction(
             }
             break;
         }
+
         case 'HEAL': {
             const multiplier = getVarianceMultiplier();
             const healAmount = Math.floor(BASE_HEAL_AMOUNT * multiplier);
@@ -146,10 +173,22 @@ function executeAction(
             }
             break;
         }
+
         case 'BLOCK':
-            attacker.isBlocking = true;
+            attacker.statusEffects.isBlocking = true;
             log.push(`🛡️ ${attacker.emoji} ${attacker.name} geht in Deckung!`);
             break;
+
+        case 'DODGE':
+            attacker.statusEffects.isDodging = true;
+            log.push(`💨 ${attacker.emoji} ${attacker.name} bewegt sich wie ein Schatten!`);
+            break;
+
+        case 'CHARGE':
+            attacker.statusEffects.isCharged = true;
+            log.push(`⚡ ${attacker.emoji} ${attacker.name} lädt einen mächtigen Angriff auf!`);
+            break;
+
         case 'WAIT':
             log.push(`💤 ${attacker.emoji} ${attacker.name} wartet ab...`);
             break;
@@ -163,7 +202,9 @@ function executeAction(
 function processUnitTurn(unit: Unit, state: BattleState, log: string[]): string | null {
     if (unit.isDead) return null;
 
-    unit.isBlocking = false;
+    // Reset blocking and dodging at start of turn (but NOT isCharged - it carries over)
+    unit.statusEffects.isBlocking = false;
+    unit.statusEffects.isDodging = false;
     unit.lastTriggeredGambitId = null;
 
     const sortedGambits = [...unit.gambits].sort((a, b) => a.priority - b.priority);
@@ -184,7 +225,7 @@ function processUnitTurn(unit: Unit, state: BattleState, log: string[]): string 
 }
 
 // ==========================================
-// HUNGER / SUDDEN DEATH MECHANIC
+// HUNGER / SUDDEN DEATH
 // ==========================================
 
 function applyHunger(state: BattleState, log: string[]): void {
@@ -237,12 +278,14 @@ export function simulateTick(state: BattleState): BattleState {
         allies: state.allies.map(u => ({
             ...u,
             stats: { ...u.stats },
-            gambits: u.gambits.map(g => ({ ...g }))
+            gambits: u.gambits.map(g => ({ ...g })),
+            statusEffects: { ...u.statusEffects }
         })),
         enemies: state.enemies.map(u => ({
             ...u,
             stats: { ...u.stats },
-            gambits: u.gambits.map(g => ({ ...g }))
+            gambits: u.gambits.map(g => ({ ...g })),
+            statusEffects: { ...u.statusEffects }
         })),
         log: [...state.log],
         status: 'FIGHTING',
@@ -251,7 +294,6 @@ export function simulateTick(state: BattleState): BattleState {
 
     newState.log.push(`──── Runde ${newState.tick} ────`);
 
-    // Process units by speed
     const allUnits = [...newState.allies, ...newState.enemies]
         .filter(u => !u.isDead)
         .sort((a, b) => b.stats.speed - a.stats.speed);
@@ -273,10 +315,8 @@ export function simulateTick(state: BattleState): BattleState {
         }
     }
 
-    // Apply hunger after all actions (Sudden Death mechanic)
     applyHunger(newState, newState.log);
 
-    // Check battle end again after hunger
     const postHungerResult = checkBattleEnd(newState);
     if (postHungerResult !== 'FIGHTING') {
         newState.status = postHungerResult;
@@ -311,7 +351,7 @@ export function nextRoom(state: BattleState): BattleState {
             ...u,
             stats: { ...u.stats, hp: newHp },
             gambits: u.gambits.map(g => ({ ...g })),
-            isBlocking: false,
+            statusEffects: { isBlocking: false, isDodging: false, isCharged: false },
             lastTriggeredGambitId: null
         };
     });

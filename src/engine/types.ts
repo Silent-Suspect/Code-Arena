@@ -1,28 +1,75 @@
 // Engine Types - Pure TypeScript, NO React imports
-// This is the single source of truth for game data structures
+// Phase 5: Advanced Tactics with Dodge & Charge
 
-export type TargetType = 'SELF' | 'ALLY_LOWEST_HP' | 'ENEMY_CLOSEST' | 'ENEMY_LOWEST_HP';
-export type ConditionType = 'ALWAYS' | 'HP_BELOW_30' | 'ENEMY_IS_BLOCKING' | 'MANA_FULL';
-export type ActionType = 'ATTACK' | 'HEAL' | 'BLOCK' | 'WAIT';
+export type TargetType =
+    | 'SELF'
+    | 'ALLY_LOWEST_HP'
+    | 'ENEMY_CLOSEST'
+    | 'ENEMY_LOWEST_HP'
+    | 'ENEMY_STRONGEST';
 
-// Arrays for cycling through options in the UI
-export const CONDITIONS: ConditionType[] = ['ALWAYS', 'HP_BELOW_30', 'ENEMY_IS_BLOCKING', 'MANA_FULL'];
-export const TARGETS: TargetType[] = ['ENEMY_CLOSEST', 'ENEMY_LOWEST_HP', 'SELF', 'ALLY_LOWEST_HP'];
-export const ACTIONS: ActionType[] = ['ATTACK', 'HEAL', 'BLOCK', 'WAIT'];
+export type ConditionType =
+    | 'ALWAYS'
+    | 'HP_BELOW_30'
+    | 'HP_BELOW_50'
+    | 'ENEMY_HP_ABOVE_50'
+    | 'ENEMY_IS_BLOCKING'
+    | 'MANA_FULL';
+
+export type ActionType =
+    | 'ATTACK'
+    | 'HEAL'
+    | 'BLOCK'
+    | 'WAIT'
+    | 'DODGE'   // Avoid next hit
+    | 'CHARGE'; // 3x damage next turn
+
+// Arrays for cycling in UI
+export const CONDITIONS: ConditionType[] = [
+    'ALWAYS',
+    'HP_BELOW_30',
+    'HP_BELOW_50',
+    'ENEMY_HP_ABOVE_50',
+    'ENEMY_IS_BLOCKING',
+    'MANA_FULL'
+];
+
+export const TARGETS: TargetType[] = [
+    'ENEMY_CLOSEST',
+    'ENEMY_LOWEST_HP',
+    'ENEMY_STRONGEST',
+    'SELF',
+    'ALLY_LOWEST_HP'
+];
+
+export const ACTIONS: ActionType[] = [
+    'ATTACK',
+    'HEAL',
+    'BLOCK',
+    'DODGE',
+    'CHARGE',
+    'WAIT'
+];
 
 export interface Gambit {
     id: string;
     active: boolean;
-    priority: number; // Lower number = higher priority
+    priority: number;
     condition: ConditionType;
     target: TargetType;
     action: ActionType;
 }
 
+export interface StatusEffects {
+    isBlocking: boolean;
+    isDodging: boolean;
+    isCharged: boolean;
+}
+
 export interface Unit {
     id: string;
     name: string;
-    emoji: string; // Visual representation
+    emoji: string;
     stats: {
         hp: number;
         maxHp: number;
@@ -32,11 +79,10 @@ export interface Unit {
     };
     gambits: Gambit[];
     isDead: boolean;
-    isBlocking: boolean; // Defense stance flag
-    lastTriggeredGambitId: string | null; // For UI feedback
+    statusEffects: StatusEffects;
+    lastTriggeredGambitId: string | null;
 }
 
-// Character template for player selection
 export interface Persona {
     id: string;
     name: string;
@@ -46,17 +92,16 @@ export interface Persona {
     initialGambits: Gambit[];
 }
 
-// Dungeon progress tracking
 export interface DungeonState {
-    room: number; // Current room (1-based)
-    maxRooms: number; // Total rooms in dungeon
+    room: number;
+    maxRooms: number;
 }
 
 export interface BattleState {
-    tick: number; // Time counter
+    tick: number;
     allies: Unit[];
     enemies: Unit[];
-    log: string[]; // Combat log for the UI
+    log: string[];
     status: 'PREPARATION' | 'FIGHTING' | 'VICTORY' | 'DEFEAT' | 'ROOM_CLEARED';
     dungeon: DungeonState;
 }

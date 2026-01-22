@@ -1,9 +1,10 @@
 // Gambit Editor Dialog Component
+// Phase 5: With DODGE and CHARGE actions
 import { useRef, useEffect } from 'react';
 import type { Gambit, ConditionType, TargetType, ActionType } from '../../engine/types';
 import { CONDITIONS, TARGETS, ACTIONS } from '../../engine/types';
 import { cn } from '../ui/cn';
-import { X, Zap, Target, Shield, Clock } from 'lucide-react';
+import { X, Zap, Shield, Target, Clock, Wind, Battery } from 'lucide-react';
 
 interface GambitEditorDialogProps {
     gambit: Gambit;
@@ -13,30 +14,37 @@ interface GambitEditorDialogProps {
 }
 
 const conditionLabels: Record<ConditionType, string> = {
-    'ALWAYS': 'Always',
+    'ALWAYS': 'Immer',
     'HP_BELOW_30': 'HP < 30%',
-    'ENEMY_IS_BLOCKING': 'Enemy Blocking',
-    'MANA_FULL': 'Mana Full'
+    'HP_BELOW_50': 'HP < 50%',
+    'ENEMY_HP_ABOVE_50': 'Gegner HP > 50%',
+    'ENEMY_IS_BLOCKING': 'Gegner blockt',
+    'MANA_FULL': 'Mana voll'
 };
 
 const targetLabels: Record<TargetType, string> = {
-    'SELF': 'Self',
-    'ALLY_LOWEST_HP': 'Ally (Low HP)',
-    'ENEMY_CLOSEST': 'Nearest Enemy',
-    'ENEMY_LOWEST_HP': 'Enemy (Low HP)'
+    'SELF': 'Selbst',
+    'ALLY_LOWEST_HP': 'Verbündeter (niedrige HP)',
+    'ENEMY_CLOSEST': 'Nächster Gegner',
+    'ENEMY_LOWEST_HP': 'Gegner (niedrige HP)',
+    'ENEMY_STRONGEST': 'Stärkster Gegner'
 };
 
 const actionLabels: Record<ActionType, string> = {
-    'ATTACK': 'Attack',
-    'HEAL': 'Heal',
-    'BLOCK': 'Block',
-    'WAIT': 'Wait'
+    'ATTACK': 'Angriff',
+    'HEAL': 'Heilen',
+    'BLOCK': 'Blocken',
+    'DODGE': 'Ausweichen',
+    'CHARGE': 'Aufladen',
+    'WAIT': 'Warten'
 };
 
 const actionColors: Record<ActionType, string> = {
     'ATTACK': 'bg-red-600 hover:bg-red-500',
     'HEAL': 'bg-emerald-600 hover:bg-emerald-500',
     'BLOCK': 'bg-blue-600 hover:bg-blue-500',
+    'DODGE': 'bg-cyan-600 hover:bg-cyan-500',
+    'CHARGE': 'bg-amber-600 hover:bg-amber-500',
     'WAIT': 'bg-gray-600 hover:bg-gray-500'
 };
 
@@ -44,6 +52,8 @@ const actionIcons: Record<ActionType, typeof Zap> = {
     'ATTACK': Zap,
     'HEAL': Shield,
     'BLOCK': Target,
+    'DODGE': Wind,
+    'CHARGE': Battery,
     'WAIT': Clock
 };
 
@@ -95,7 +105,7 @@ export function GambitEditorDialog({ gambit, isOpen, onClose, onUpdate }: Gambit
             <div className="p-4">
                 {/* Header */}
                 <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-bold text-white">Edit Gambit</h2>
+                    <h2 className="text-lg font-bold text-white">Gambit bearbeiten</h2>
                     <button
                         onClick={onClose}
                         className="p-1 rounded-lg hover:bg-gray-800 text-gray-400 hover:text-white transition-colors"
@@ -106,7 +116,7 @@ export function GambitEditorDialog({ gambit, isOpen, onClose, onUpdate }: Gambit
 
                 {/* Active Toggle */}
                 <div className="mb-4 flex items-center justify-between">
-                    <span className="text-sm text-gray-400">Enabled</span>
+                    <span className="text-sm text-gray-400">Aktiviert</span>
                     <button
                         onClick={toggleActive}
                         className={cn(
@@ -123,7 +133,7 @@ export function GambitEditorDialog({ gambit, isOpen, onClose, onUpdate }: Gambit
 
                 {/* Condition */}
                 <div className="mb-3">
-                    <label className="text-xs text-amber-400 font-medium mb-1 block">IF...</label>
+                    <label className="text-xs text-amber-400 font-medium mb-1 block">WENN...</label>
                     <button
                         onClick={cycleCondition}
                         className={cn(
@@ -134,13 +144,13 @@ export function GambitEditorDialog({ gambit, isOpen, onClose, onUpdate }: Gambit
                         )}
                     >
                         {conditionLabels[gambit.condition]}
-                        <span className="float-right text-amber-400/60 text-xs">tap to change</span>
+                        <span className="float-right text-amber-400/60 text-xs">antippen</span>
                     </button>
                 </div>
 
                 {/* Target */}
                 <div className="mb-3">
-                    <label className="text-xs text-cyan-400 font-medium mb-1 block">TARGET...</label>
+                    <label className="text-xs text-cyan-400 font-medium mb-1 block">ZIEL...</label>
                     <button
                         onClick={cycleTarget}
                         className={cn(
@@ -151,13 +161,13 @@ export function GambitEditorDialog({ gambit, isOpen, onClose, onUpdate }: Gambit
                         )}
                     >
                         {targetLabels[gambit.target]}
-                        <span className="float-right text-cyan-400/60 text-xs">tap to change</span>
+                        <span className="float-right text-cyan-400/60 text-xs">antippen</span>
                     </button>
                 </div>
 
                 {/* Action */}
                 <div className="mb-4">
-                    <label className="text-xs text-violet-400 font-medium mb-2 block">ACTION</label>
+                    <label className="text-xs text-violet-400 font-medium mb-2 block">AKTION</label>
                     <div className="grid grid-cols-2 gap-2">
                         {ACTIONS.map(action => {
                             const Icon = actionIcons[action];
@@ -166,14 +176,14 @@ export function GambitEditorDialog({ gambit, isOpen, onClose, onUpdate }: Gambit
                                     key={action}
                                     onClick={() => setAction(action)}
                                     className={cn(
-                                        "flex items-center gap-2 px-4 py-3 rounded-lg",
-                                        "font-medium transition-all",
+                                        "flex items-center gap-2 px-3 py-2 rounded-lg",
+                                        "font-medium transition-all text-sm",
                                         gambit.action === action
                                             ? cn(actionColors[action], "text-white ring-2 ring-white/30")
                                             : "bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700"
                                     )}
                                 >
-                                    <Icon size={16} />
+                                    <Icon size={14} />
                                     {actionLabels[action]}
                                 </button>
                             );
@@ -192,7 +202,7 @@ export function GambitEditorDialog({ gambit, isOpen, onClose, onUpdate }: Gambit
                         "transition-all"
                     )}
                 >
-                    Done
+                    Fertig
                 </button>
             </div>
         </dialog>

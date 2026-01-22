@@ -1,7 +1,8 @@
 // Mock Data - Dungeon System with Character Selection
+// Phase 5: Advanced Tactics with Dodge & Charge
 // Pure TypeScript, NO React imports
 
-import type { Unit, Gambit, BattleState, Persona } from './types';
+import type { Unit, Gambit, BattleState, Persona, StatusEffects } from './types';
 
 let unitIdCounter = 0;
 let gambitIdCounter = 0;
@@ -12,6 +13,14 @@ function generateUnitId(): string {
 
 function generateGambitId(): string {
     return `gambit_${++gambitIdCounter}`;
+}
+
+function createDefaultStatusEffects(): StatusEffects {
+    return {
+        isBlocking: false,
+        isDodging: false,
+        isCharged: false
+    };
 }
 
 /**
@@ -36,20 +45,20 @@ export const PERSONA_FELIX: Persona = {
     id: 'felix',
     name: 'Felix',
     emoji: '⚡',
-    description: 'Schnell & Tödlich',
+    description: 'Der Ninja - Schnell & Ausweichend',
     baseStats: {
-        hp: 50,
-        maxHp: 50,
-        atk: 14,
+        hp: 60,
+        maxHp: 60,
+        atk: 16,
         def: 2,
-        speed: 18 // Very fast!
+        speed: 20 // Very fast!
     },
     initialGambits: [
         {
             id: 'felix_g1',
             active: true,
             priority: 1,
-            condition: 'HP_BELOW_30',
+            condition: 'HP_BELOW_50',
             target: 'SELF',
             action: 'HEAL'
         },
@@ -57,17 +66,17 @@ export const PERSONA_FELIX: Persona = {
             id: 'felix_g2',
             active: true,
             priority: 2,
-            condition: 'ALWAYS',
-            target: 'ENEMY_LOWEST_HP',
-            action: 'ATTACK'
+            condition: 'ENEMY_HP_ABOVE_50',
+            target: 'SELF',
+            action: 'DODGE' // Play safe early game
         },
         {
             id: 'felix_g3',
-            active: false,
+            active: true,
             priority: 3,
             condition: 'ALWAYS',
             target: 'ENEMY_CLOSEST',
-            action: 'WAIT'
+            action: 'ATTACK'
         }
     ]
 };
@@ -76,13 +85,13 @@ export const PERSONA_MORITZ: Persona = {
     id: 'moritz',
     name: 'Moritz',
     emoji: '🛡️',
-    description: 'Der Fels in der Brandung',
+    description: 'Der Berserker - Aufladen & Zerschmettern',
     baseStats: {
-        hp: 100,
-        maxHp: 100,
-        atk: 10,
-        def: 6,
-        speed: 8 // Slow but sturdy
+        hp: 120,
+        maxHp: 120,
+        atk: 12,
+        def: 5,
+        speed: 8 // Slow but powerful
     },
     initialGambits: [
         {
@@ -91,23 +100,23 @@ export const PERSONA_MORITZ: Persona = {
             priority: 1,
             condition: 'HP_BELOW_30',
             target: 'SELF',
-            action: 'BLOCK'
+            action: 'HEAL'
         },
         {
             id: 'moritz_g2',
             active: true,
             priority: 2,
-            condition: 'ALWAYS',
-            target: 'ENEMY_CLOSEST',
-            action: 'ATTACK'
+            condition: 'ENEMY_HP_ABOVE_50',
+            target: 'SELF',
+            action: 'CHARGE' // Power up for big enemies
         },
         {
             id: 'moritz_g3',
-            active: false,
+            active: true,
             priority: 3,
             condition: 'ALWAYS',
-            target: 'SELF',
-            action: 'WAIT'
+            target: 'ENEMY_STRONGEST',
+            action: 'ATTACK'
         }
     ]
 };
@@ -126,7 +135,7 @@ function createStaubfluse(): Unit {
         stats: {
             hp: 20,
             maxHp: 20,
-            atk: 5,
+            atk: 6,
             def: 0,
             speed: 6
         },
@@ -141,7 +150,7 @@ function createStaubfluse(): Unit {
             }
         ],
         isDead: false,
-        isBlocking: false,
+        statusEffects: createDefaultStatusEffects(),
         lastTriggeredGambitId: null
     };
 }
@@ -152,9 +161,9 @@ function createGurke(): Unit {
         name: 'Die Gurke',
         emoji: '🥒',
         stats: {
-            hp: 35,
-            maxHp: 35,
-            atk: 8,
+            hp: 40,
+            maxHp: 40,
+            atk: 10,
             def: 3,
             speed: 7
         },
@@ -169,7 +178,7 @@ function createGurke(): Unit {
             }
         ],
         isDead: false,
-        isBlocking: false,
+        statusEffects: createDefaultStatusEffects(),
         lastTriggeredGambitId: null
     };
 }
@@ -180,11 +189,11 @@ function createPostbote(): Unit {
         name: 'Der Postbote',
         emoji: '📬',
         stats: {
-            hp: 30,
-            maxHp: 30,
-            atk: 10,
+            hp: 35,
+            maxHp: 35,
+            atk: 12,
             def: 2,
-            speed: 14 // Fast!
+            speed: 16 // Fast!
         },
         gambits: [
             {
@@ -197,7 +206,7 @@ function createPostbote(): Unit {
             }
         ],
         isDead: false,
-        isBlocking: false,
+        statusEffects: createDefaultStatusEffects(),
         lastTriggeredGambitId: null
     };
 }
@@ -208,9 +217,9 @@ function createSpruehflasche(): Unit {
         name: 'Sprühflasche',
         emoji: '💦',
         stats: {
-            hp: 45,
-            maxHp: 45,
-            atk: 12,
+            hp: 50,
+            maxHp: 50,
+            atk: 14,
             def: 4,
             speed: 10
         },
@@ -233,7 +242,7 @@ function createSpruehflasche(): Unit {
             }
         ],
         isDead: false,
-        isBlocking: false,
+        statusEffects: createDefaultStatusEffects(),
         lastTriggeredGambitId: null
     };
 }
@@ -244,10 +253,10 @@ function createStaubsauger(): Unit {
         name: 'STAUBSAUGER',
         emoji: '🤖',
         stats: {
-            hp: 80,
-            maxHp: 80,
-            atk: 15,
-            def: 5,
+            hp: 100,
+            maxHp: 100,
+            atk: 18,
+            def: 6,
             speed: 6
         },
         gambits: [
@@ -263,13 +272,21 @@ function createStaubsauger(): Unit {
                 id: generateGambitId(),
                 active: true,
                 priority: 2,
+                condition: 'ENEMY_HP_ABOVE_50',
+                target: 'SELF',
+                action: 'CHARGE' // Boss charges too!
+            },
+            {
+                id: generateGambitId(),
+                active: true,
+                priority: 3,
                 condition: 'ALWAYS',
                 target: 'ENEMY_LOWEST_HP',
                 action: 'ATTACK'
             }
         ],
         isDead: false,
-        isBlocking: false,
+        statusEffects: createDefaultStatusEffects(),
         lastTriggeredGambitId: null
     };
 }
@@ -323,10 +340,10 @@ export function createUnitFromPersona(persona: Persona): Unit {
         stats: { ...persona.baseStats },
         gambits: persona.initialGambits.map(g => ({
             ...g,
-            id: generateGambitId() // Generate fresh IDs
+            id: generateGambitId()
         })),
         isDead: false,
-        isBlocking: false,
+        statusEffects: createDefaultStatusEffects(),
         lastTriggeredGambitId: null
     };
 }
@@ -353,7 +370,7 @@ export function createInitialBattleState(persona: Persona): BattleState {
 }
 
 /**
- * Resets the ID counters (useful for testing)
+ * Resets the ID counters
  */
 export function resetIdCounters(): void {
     unitIdCounter = 0;
