@@ -1,4 +1,4 @@
-// Mock Data - Helper functions to create test units
+// Mock Data - Cat-Command Theme
 // Pure TypeScript, NO React imports
 
 import type { Unit, Gambit, BattleState } from './types';
@@ -29,19 +29,20 @@ export function createEmptyGambit(priority: number): Gambit {
 }
 
 /**
- * Creates the default player unit with 3 gambit slots
+ * Creates Commander Mitzie - the player's cat
+ * High Speed, Low Def - a nimble attacker
  */
 export function createPlayerUnit(): Unit {
     return {
         id: generateUnitId(),
-        name: 'Hero',
-        emoji: '⚔️',
+        name: 'Commander Mitzie',
+        emoji: '😼',
         stats: {
-            hp: 100,
-            maxHp: 100,
-            atk: 15,
-            def: 5,
-            speed: 10
+            hp: 80,
+            maxHp: 80,
+            atk: 12,
+            def: 3,
+            speed: 15 // Fast cat!
         },
         gambits: [
             {
@@ -57,29 +58,32 @@ export function createPlayerUnit(): Unit {
                 active: true,
                 priority: 2,
                 condition: 'ALWAYS',
-                target: 'ENEMY_LOWEST_HP',
+                target: 'ENEMY_CLOSEST',
                 action: 'ATTACK'
             },
             createEmptyGambit(3)
         ],
-        isDead: false
+        isDead: false,
+        isBlocking: false,
+        lastTriggeredGambitId: null
     };
 }
 
 /**
- * Creates a test enemy (Rat)
+ * Creates The Vacuum - a fearsome household enemy
+ * High HP, Low Speed - a tanky threat
  */
 export function createTestEnemy(): Unit {
     return {
         id: generateUnitId(),
-        name: 'Rat',
-        emoji: '🐀',
+        name: 'The Vacuum',
+        emoji: '🤖',
         stats: {
-            hp: 30,
-            maxHp: 30,
-            atk: 8,
-            def: 2,
-            speed: 12
+            hp: 60,
+            maxHp: 60,
+            atk: 10,
+            def: 5,
+            speed: 5 // Slow but dangerous
         },
         gambits: [
             {
@@ -91,19 +95,52 @@ export function createTestEnemy(): Unit {
                 action: 'ATTACK'
             }
         ],
-        isDead: false
+        isDead: false,
+        isBlocking: false,
+        lastTriggeredGambitId: null
     };
 }
 
 /**
- * Creates an initial battle state for testing
+ * Creates The Toaster - a quick but fragile enemy
+ */
+export function createToasterEnemy(): Unit {
+    return {
+        id: generateUnitId(),
+        name: 'The Toaster',
+        emoji: '🍞',
+        stats: {
+            hp: 35,
+            maxHp: 35,
+            atk: 8,
+            def: 2,
+            speed: 12
+        },
+        gambits: [
+            {
+                id: generateGambitId(),
+                active: true,
+                priority: 1,
+                condition: 'ALWAYS',
+                target: 'ENEMY_LOWEST_HP',
+                action: 'ATTACK'
+            }
+        ],
+        isDead: false,
+        isBlocking: false,
+        lastTriggeredGambitId: null
+    };
+}
+
+/**
+ * Creates an initial battle state for Cat-Command
  */
 export function createInitialBattleState(): BattleState {
     return {
         tick: 0,
         allies: [createPlayerUnit()],
-        enemies: [createTestEnemy(), createTestEnemy()],
-        log: ['Battle begins!'],
+        enemies: [createTestEnemy(), createToasterEnemy()],
+        log: ['🐱 Commander Mitzie enters the arena!', '🤖 The appliances power on...'],
         status: 'PREPARATION'
     };
 }

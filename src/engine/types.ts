@@ -5,6 +5,11 @@ export type TargetType = 'SELF' | 'ALLY_LOWEST_HP' | 'ENEMY_CLOSEST' | 'ENEMY_LO
 export type ConditionType = 'ALWAYS' | 'HP_BELOW_30' | 'ENEMY_IS_BLOCKING' | 'MANA_FULL';
 export type ActionType = 'ATTACK' | 'HEAL' | 'BLOCK' | 'WAIT';
 
+// Arrays for cycling through options in the UI
+export const CONDITIONS: ConditionType[] = ['ALWAYS', 'HP_BELOW_30', 'ENEMY_IS_BLOCKING', 'MANA_FULL'];
+export const TARGETS: TargetType[] = ['ENEMY_CLOSEST', 'ENEMY_LOWEST_HP', 'SELF', 'ALLY_LOWEST_HP'];
+export const ACTIONS: ActionType[] = ['ATTACK', 'HEAL', 'BLOCK', 'WAIT'];
+
 export interface Gambit {
     id: string;
     active: boolean;
@@ -27,6 +32,8 @@ export interface Unit {
     };
     gambits: Gambit[];
     isDead: boolean;
+    isBlocking: boolean; // Defense stance flag
+    lastTriggeredGambitId: string | null; // For UI feedback
 }
 
 export interface BattleState {

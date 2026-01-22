@@ -1,13 +1,18 @@
 // Battle Simulator - Pure TypeScript, NO React imports
-// Deterministic game logic
+// Deterministic game logic for Cat-Command
 
 import type { BattleState, Unit, Gambit, ActionType, TargetType } from './types';
 
 /**
  * Evaluates if a gambit's condition is met for a given unit
  */
-function evaluateCondition(gambit: Gambit, unit: Unit, _state: BattleState): boolean {
+function evaluateCondition(gambit: Gambit, unit: Unit, state: BattleState): boolean {
     if (!gambit.active) return false;
+
+    // Get enemies for this unit
+    const isAlly = state.allies.some(a => a.id === unit.id);
+    const enemies = isAlly ? state.enemies : state.allies;
+    const livingEnemies = enemies.filter(u => !u.isDead);
 
     switch (gambit.condition) {
         case 'ALWAYS':
@@ -15,11 +20,10 @@ function evaluateCondition(gambit: Gambit, unit: Unit, _state: BattleState): boo
         case 'HP_BELOW_30':
             return (unit.stats.hp / unit.stats.maxHp) < 0.3;
         case 'ENEMY_IS_BLOCKING':
-            // TODO: Implement blocking state tracking
-            return false;
+            return livingEnemies.some(e => e.isBlocking);
         case 'MANA_FULL':
-            // TODO: Implement mana system
-            return false;
+            // No mana system yet, treat as always true for now
+            return true;
         default:
             return false;
     }
@@ -44,19 +48,30 @@ function resolveTarget(
         case 'SELF':
             return unit;
         case 'ALLY_LOWEST_HP':
+            if (livingAllies.length === 0) return null;
             return livingAllies.reduce((lowest, current) =>
                 current.stats.hp < lowest.stats.hp ? current : lowest
-                , livingAllies[0]) ?? null;
+            );
         case 'ENEMY_CLOSEST':
-            // For now, just return first living enemy
             return livingEnemies[0] ?? null;
         case 'ENEMY_LOWEST_HP':
+            if (livingEnemies.length === 0) return null;
             return livingEnemies.reduce((lowest, current) =>
                 current.stats.hp < lowest.stats.hp ? current : lowest
-                , livingEnemies[0]) ?? null;
+            );
         default:
             return null;
     }
+}
+
+/**
+ * Cat-themed action verbs for flavor
+ */
+const attackVerbs = ['scratches', 'pounces on', 'bites', 'swipes at', 'hisses and claws'];
+const healVerbs = ['grooms', 'purrs to heal', 'takes a power nap on'];
+
+function getRandomVerb(verbs: string[]): string {
+    return verbs[Math.floor(Math.random() * verbs.length)];
 }
 
 /**
@@ -70,37 +85,56 @@ function executeAction(
 ): void {
     switch (action) {
         case 'ATTACK': {
-            const damage = Math.max(1, attacker.stats.atk - target.stats.def);
+            // If target is blocking, reduce damage by 50%
+            const baseDamage = attacker.stats.atk - target.stats.def;
+            const damageMultiplier = target.isBlocking ? 0.5 : 1;
+            const damage = Math.max(1, Math.floor(baseDamage * damageMultiplier));
+
             target.stats.hp = Math.max(0, target.stats.hp - damage);
-            log.push(`${attacker.emoji} ${attacker.name} attacks ${target.emoji} ${target.name} for ${damage} damage!`);
+
+            const verb = getRandomVerb(attackVerbs);
+            const blockedText = target.isBlocking ? ' (BLOCKED!)' : '';
+            log.push(`${attacker.emoji} ${attacker.name} ${verb} ${target.emoji} ${target.name} for ${damage} DMG${blockedText}`);
 
             if (target.stats.hp <= 0) {
                 target.isDead = true;
-                log.push(`${target.emoji} ${target.name} has been defeated!`);
+                log.push(`💥 ${target.emoji} ${target.name} has been defeated!`);
             }
             break;
         }
         case 'HEAL': {
-            const healAmount = Math.floor(attacker.stats.atk * 0.5);
+            const healAmount = 8; // Fixed heal amount
+            const actualHeal = Math.min(healAmount, target.stats.maxHp - target.stats.hp);
             target.stats.hp = Math.min(target.stats.maxHp, target.stats.hp + healAmount);
-            log.push(`${attacker.emoji} ${attacker.name} heals ${target.emoji} ${target.name} for ${healAmount} HP!`);
+
+            if (actualHeal > 0) {
+                const verb = getRandomVerb(healVerbs);
+                log.push(`${attacker.emoji} ${attacker.name} ${verb} ${target.emoji} ${target.name} for +${actualHeal} HP`);
+            } else {
+                log.push(`${attacker.emoji} ${attacker.name} is already at full health!`);
+            }
             break;
         }
         case 'BLOCK':
-            log.push(`${attacker.emoji} ${attacker.name} takes a defensive stance!`);
-            // TODO: Implement blocking state
+            attacker.isBlocking = true;
+            log.push(`🛡️ ${attacker.emoji} ${attacker.name} curls up defensively!`);
             break;
         case 'WAIT':
-            log.push(`${attacker.emoji} ${attacker.name} is waiting...`);
+            log.push(`💤 ${attacker.emoji} ${attacker.name} watches and waits...`);
             break;
     }
 }
 
 /**
  * Process a single unit's turn
+ * Returns the ID of the triggered gambit (for UI feedback)
  */
-function processUnitTurn(unit: Unit, state: BattleState, log: string[]): void {
-    if (unit.isDead) return;
+function processUnitTurn(unit: Unit, state: BattleState, log: string[]): string | null {
+    if (unit.isDead) return null;
+
+    // Reset blocking at start of turn (blocking only lasts one round)
+    unit.isBlocking = false;
+    unit.lastTriggeredGambitId = null;
 
     // Sort gambits by priority (lower = higher priority)
     const sortedGambits = [...unit.gambits].sort((a, b) => a.priority - b.priority);
@@ -110,13 +144,15 @@ function processUnitTurn(unit: Unit, state: BattleState, log: string[]): void {
             const target = resolveTarget(gambit.target, unit, state);
             if (target) {
                 executeAction(gambit.action, unit, target, log);
-                return; // Only execute one action per turn
+                unit.lastTriggeredGambitId = gambit.id;
+                return gambit.id;
             }
         }
     }
 
     // Default action if no gambit matched
-    log.push(`${unit.emoji} ${unit.name} does nothing...`);
+    log.push(`❓ ${unit.emoji} ${unit.name} is confused...`);
+    return null;
 }
 
 /**
@@ -157,7 +193,7 @@ export function simulateTick(state: BattleState): BattleState {
         status: 'FIGHTING'
     };
 
-    newState.log.push(`--- Tick ${newState.tick} ---`);
+    newState.log.push(`──── Round ${newState.tick} ────`);
 
     // Combine all units and sort by speed (higher = faster)
     const allUnits = [...newState.allies, ...newState.enemies]
@@ -172,7 +208,11 @@ export function simulateTick(state: BattleState): BattleState {
         const battleResult = checkBattleEnd(newState);
         if (battleResult !== 'FIGHTING') {
             newState.status = battleResult;
-            newState.log.push(`=== ${battleResult}! ===`);
+            if (battleResult === 'VICTORY') {
+                newState.log.push(`🎉 VICTORY! The house is safe!`);
+            } else {
+                newState.log.push(`😿 DEFEAT! The appliances win...`);
+            }
             break;
         }
     }

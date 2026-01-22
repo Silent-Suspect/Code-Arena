@@ -1,15 +1,17 @@
-// Code-Arena - Main App Component
+// Cat-Command - Main App Component
 import { useState, useCallback } from 'react';
-import type { BattleState } from './engine/types';
+import type { BattleState, Gambit } from './engine/types';
 import { createInitialBattleState } from './engine/mockData';
 import { useGameLoop } from './hooks/useGameLoop';
 import { ArenaView } from './components/game/ArenaView';
 import { GambitCard } from './components/game/GambitCard';
+import { GambitEditorDialog } from './components/game/GambitEditorDialog';
 import { cn } from './components/ui/cn';
-import { Play, RotateCcw, Scroll } from 'lucide-react';
+import { Play, RotateCcw, Scroll, Cat } from 'lucide-react';
 
 function App() {
     const [battleState, setBattleState] = useState<BattleState>(createInitialBattleState);
+    const [editingGambitId, setEditingGambitId] = useState<string | null>(null);
 
     const handleTick = useCallback((newState: BattleState) => {
         setBattleState(newState);
@@ -20,6 +22,7 @@ function App() {
     const handleFight = () => {
         setBattleState(prev => ({
             ...prev,
+            log: [...prev.log, '⚔️ FIGHT!'],
             status: 'FIGHTING'
         }));
     };
@@ -28,9 +31,24 @@ function App() {
         setBattleState(createInitialBattleState());
     };
 
+    const handleGambitUpdate = (gambitId: string, updates: Partial<Gambit>) => {
+        setBattleState(prev => ({
+            ...prev,
+            allies: prev.allies.map(unit => ({
+                ...unit,
+                gambits: unit.gambits.map(g =>
+                    g.id === gambitId ? { ...g, ...updates } : g
+                )
+            }))
+        }));
+    };
+
     const playerUnit = battleState.allies[0];
     const canFight = battleState.status === 'PREPARATION';
     const isBattleOver = battleState.status === 'VICTORY' || battleState.status === 'DEFEAT';
+    const isFighting = battleState.status === 'FIGHTING';
+
+    const editingGambit = playerUnit?.gambits.find(g => g.id === editingGambitId);
 
     return (
         <div className="h-screen flex flex-col bg-gray-950 text-white overflow-hidden">
@@ -66,22 +84,23 @@ function App() {
                         onClick={handleReset}
                         className={cn(
                             "flex items-center gap-2 px-6 py-2.5 rounded-lg",
-                            "bg-gradient-to-r from-violet-600 to-indigo-600",
-                            "hover:from-violet-500 hover:to-indigo-500",
+                            battleState.status === 'VICTORY'
+                                ? "bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500"
+                                : "bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500",
                             "text-white font-bold uppercase tracking-wider",
-                            "shadow-lg shadow-violet-900/30",
+                            "shadow-lg",
                             "transition-all duration-200 hover:scale-105"
                         )}
                     >
                         <RotateCcw size={18} />
-                        New Battle
+                        {battleState.status === 'VICTORY' ? 'Play Again!' : 'Try Again'}
                     </button>
                 )}
 
-                {battleState.status === 'FIGHTING' && (
+                {isFighting && (
                     <div className="flex items-center gap-2 text-amber-400">
-                        <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-                        <span className="text-sm font-medium">Battle in progress...</span>
+                        <Cat size={20} className="animate-bounce" />
+                        <span className="text-sm font-medium">Round {battleState.tick}...</span>
                     </div>
                 )}
             </div>
@@ -100,12 +119,24 @@ function App() {
                     <span className="text-xs text-gray-500 ml-2">
                         {playerUnit?.name}'s AI Programming
                     </span>
+                    {canFight && (
+                        <span className="ml-auto text-xs text-violet-400">
+                            Tap to edit ✏️
+                        </span>
+                    )}
                 </div>
 
                 {/* Gambit List */}
                 <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
                     {playerUnit?.gambits.map((gambit, index) => (
-                        <GambitCard key={gambit.id} gambit={gambit} index={index} />
+                        <GambitCard
+                            key={gambit.id}
+                            gambit={gambit}
+                            index={index}
+                            isEditable={canFight}
+                            isTriggered={isFighting && playerUnit.lastTriggeredGambitId === gambit.id}
+                            onEdit={() => setEditingGambitId(gambit.id)}
+                        />
                     ))}
                 </div>
 
@@ -127,6 +158,16 @@ function App() {
                     </div>
                 </div>
             </div>
+
+            {/* Gambit Editor Dialog */}
+            {editingGambit && (
+                <GambitEditorDialog
+                    gambit={editingGambit}
+                    isOpen={!!editingGambitId}
+                    onClose={() => setEditingGambitId(null)}
+                    onUpdate={(updates) => handleGambitUpdate(editingGambitId!, updates)}
+                />
+            )}
         </div>
     );
 }

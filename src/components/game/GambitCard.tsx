@@ -1,11 +1,15 @@
 // Gambit Card Component - Displays a single gambit configuration
+// Now interactive in PREPARATION mode
 import type { Gambit } from '../../engine/types';
 import { cn } from '../ui/cn';
-import { Target, Zap, Shield } from 'lucide-react';
+import { Target, Zap, Shield, Clock, Edit2 } from 'lucide-react';
 
 interface GambitCardProps {
     gambit: Gambit;
     index: number;
+    isEditable?: boolean;
+    isTriggered?: boolean;
+    onEdit?: () => void;
 }
 
 const conditionLabels: Record<Gambit['condition'], string> = {
@@ -32,34 +36,39 @@ const actionLabels: Record<Gambit['action'], string> = {
 const actionIcons: Record<Gambit['action'], typeof Zap> = {
     'ATTACK': Zap,
     'HEAL': Shield,
-    'BLOCK': Shield,
-    'WAIT': Target
+    'BLOCK': Target,
+    'WAIT': Clock
 };
 
-export function GambitCard({ gambit, index }: GambitCardProps) {
+export function GambitCard({ gambit, index, isEditable = false, isTriggered = false, onEdit }: GambitCardProps) {
     const ActionIcon = actionIcons[gambit.action];
 
     return (
         <div
+            onClick={isEditable && onEdit ? onEdit : undefined}
             className={cn(
                 "flex items-center gap-3 p-3 rounded-lg",
                 "bg-gradient-to-r from-gray-800/60 to-gray-900/60",
                 "border border-gray-700/40",
-                !gambit.active && "opacity-50"
+                "transition-all duration-300",
+                !gambit.active && "opacity-50",
+                isEditable && "cursor-pointer hover:border-violet-500/50 hover:bg-gray-800/80",
+                isTriggered && "ring-2 ring-amber-400 animate-pulse border-amber-400/50"
             )}
         >
             {/* Priority Number */}
             <div className={cn(
-                "w-8 h-8 rounded-full flex items-center justify-center",
-                "bg-violet-600/30 text-violet-300 font-bold text-sm"
+                "w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0",
+                isTriggered ? "bg-amber-500/40 text-amber-200" : "bg-violet-600/30 text-violet-300",
+                "font-bold text-sm"
             )}>
                 {index + 1}
             </div>
 
             {/* Gambit Info */}
-            <div className="flex-1 flex flex-col gap-1">
+            <div className="flex-1 flex flex-col gap-1 min-w-0">
                 {/* Condition -> Target -> Action flow */}
-                <div className="flex items-center gap-2 text-sm">
+                <div className="flex items-center gap-2 text-sm flex-wrap">
                     <span className="text-amber-400 font-medium">
                         IF {conditionLabels[gambit.condition]}
                     </span>
@@ -81,11 +90,15 @@ export function GambitCard({ gambit, index }: GambitCardProps) {
                 </div>
             </div>
 
-            {/* Active Toggle Indicator */}
-            <div className={cn(
-                "w-3 h-3 rounded-full",
-                gambit.active ? "bg-emerald-500" : "bg-gray-600"
-            )} />
+            {/* Edit indicator or Active Toggle */}
+            {isEditable ? (
+                <Edit2 size={16} className="text-gray-500 flex-shrink-0" />
+            ) : (
+                <div className={cn(
+                    "w-3 h-3 rounded-full flex-shrink-0",
+                    gambit.active ? "bg-emerald-500" : "bg-gray-600"
+                )} />
+            )}
         </div>
     );
 }
