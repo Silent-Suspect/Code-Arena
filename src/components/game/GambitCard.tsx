@@ -1,0 +1,91 @@
+// Gambit Card Component - Displays a single gambit configuration
+import type { Gambit } from '../../engine/types';
+import { cn } from '../ui/cn';
+import { Target, Zap, Shield } from 'lucide-react';
+
+interface GambitCardProps {
+    gambit: Gambit;
+    index: number;
+}
+
+const conditionLabels: Record<Gambit['condition'], string> = {
+    'ALWAYS': 'Always',
+    'HP_BELOW_30': 'HP < 30%',
+    'ENEMY_IS_BLOCKING': 'Enemy Blocking',
+    'MANA_FULL': 'Mana Full'
+};
+
+const targetLabels: Record<Gambit['target'], string> = {
+    'SELF': 'Self',
+    'ALLY_LOWEST_HP': 'Ally (Low HP)',
+    'ENEMY_CLOSEST': 'Nearest Enemy',
+    'ENEMY_LOWEST_HP': 'Enemy (Low HP)'
+};
+
+const actionLabels: Record<Gambit['action'], string> = {
+    'ATTACK': 'Attack',
+    'HEAL': 'Heal',
+    'BLOCK': 'Block',
+    'WAIT': 'Wait'
+};
+
+const actionIcons: Record<Gambit['action'], typeof Zap> = {
+    'ATTACK': Zap,
+    'HEAL': Shield,
+    'BLOCK': Shield,
+    'WAIT': Target
+};
+
+export function GambitCard({ gambit, index }: GambitCardProps) {
+    const ActionIcon = actionIcons[gambit.action];
+
+    return (
+        <div
+            className={cn(
+                "flex items-center gap-3 p-3 rounded-lg",
+                "bg-gradient-to-r from-gray-800/60 to-gray-900/60",
+                "border border-gray-700/40",
+                !gambit.active && "opacity-50"
+            )}
+        >
+            {/* Priority Number */}
+            <div className={cn(
+                "w-8 h-8 rounded-full flex items-center justify-center",
+                "bg-violet-600/30 text-violet-300 font-bold text-sm"
+            )}>
+                {index + 1}
+            </div>
+
+            {/* Gambit Info */}
+            <div className="flex-1 flex flex-col gap-1">
+                {/* Condition -> Target -> Action flow */}
+                <div className="flex items-center gap-2 text-sm">
+                    <span className="text-amber-400 font-medium">
+                        IF {conditionLabels[gambit.condition]}
+                    </span>
+                    <span className="text-gray-500">→</span>
+                    <span className="text-cyan-400">
+                        {targetLabels[gambit.target]}
+                    </span>
+                    <span className="text-gray-500">→</span>
+                    <span className={cn(
+                        "flex items-center gap-1 font-medium",
+                        gambit.action === 'ATTACK' && "text-red-400",
+                        gambit.action === 'HEAL' && "text-emerald-400",
+                        gambit.action === 'BLOCK' && "text-blue-400",
+                        gambit.action === 'WAIT' && "text-gray-400"
+                    )}>
+                        <ActionIcon size={14} />
+                        {actionLabels[gambit.action]}
+                    </span>
+                </div>
+            </div>
+
+            {/* Active Toggle Indicator */}
+            <div className={cn(
+                "w-3 h-3 rounded-full",
+                gambit.active ? "bg-emerald-500" : "bg-gray-600"
+            )} />
+        </div>
+    );
+}
