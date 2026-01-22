@@ -1,16 +1,44 @@
 // Battle Simulator - Pure TypeScript, NO React imports
 // Deterministic game logic for Cat-Command Dungeon
+// Phase 4: RNG Variance & Sudden Death (Hunger)
 
 import type { BattleState, Unit, Gambit, ActionType, TargetType } from './types';
 import { getEnemiesForRoom, getRoomDescription } from './mockData';
 
+// ==========================================
+// CONSTANTS
+// ==========================================
+
+const HUNGER_START_ROUND = 20;
+const BASE_HEAL_AMOUNT = 10;
+
+// ==========================================
+// RNG HELPERS
+// ==========================================
+
 /**
- * Evaluates if a gambit's condition is met for a given unit
+ * Get a random multiplier between 0.8 and 1.2
  */
+function getVarianceMultiplier(): number {
+    return 0.8 + Math.random() * 0.4;
+}
+
+/**
+ * Determine hit quality for logging
+ */
+function getHitQuality(multiplier: number): string {
+    if (multiplier >= 1.1) return ' (KRIT!)';
+    if (multiplier <= 0.9) return ' (Streifer)';
+    return '';
+}
+
+// ==========================================
+// CONDITION EVALUATION
+// ==========================================
+
 function evaluateCondition(gambit: Gambit, unit: Unit, state: BattleState): boolean {
     if (!gambit.active) return false;
 
-    // Get enemies for this unit
     const isAlly = state.allies.some(a => a.id === unit.id);
     const enemies = isAlly ? state.enemies : state.allies;
     const livingEnemies = enemies.filter(u => !u.isDead);
@@ -23,15 +51,16 @@ function evaluateCondition(gambit: Gambit, unit: Unit, state: BattleState): bool
         case 'ENEMY_IS_BLOCKING':
             return livingEnemies.some(e => e.isBlocking);
         case 'MANA_FULL':
-            return true; // No mana system yet
+            return true;
         default:
             return false;
     }
 }
 
-/**
- * Resolves a target based on the target type
- */
+// ==========================================
+// TARGET RESOLUTION
+// ==========================================
+
 function resolveTarget(
     targetType: TargetType,
     unit: Unit,
@@ -64,19 +93,17 @@ function resolveTarget(
     }
 }
 
-/**
- * Cat-themed action verbs for flavor
- */
-const attackVerbs = ['kratzt', 'springt auf', 'beißt', 'schlägt', 'faucht und krallt'];
+// ==========================================
+// ACTION EXECUTION WITH VARIANCE
+// ==========================================
+
+const attackVerbs = ['kratzt', 'springt auf', 'beißt', 'schlägt', 'faucht'];
 const healVerbs = ['leckt sich', 'macht ein Nickerchen', 'schnurrt heilend'];
 
 function getRandomVerb(verbs: string[]): string {
     return verbs[Math.floor(Math.random() * verbs.length)];
 }
 
-/**
- * Executes an action from a unit to a target
- */
 function executeAction(
     action: ActionType,
     attacker: Unit,
@@ -85,15 +112,18 @@ function executeAction(
 ): void {
     switch (action) {
         case 'ATTACK': {
-            const baseDamage = attacker.stats.atk - target.stats.def;
-            const damageMultiplier = target.isBlocking ? 0.5 : 1;
-            const damage = Math.max(1, Math.floor(baseDamage * damageMultiplier));
+            const multiplier = getVarianceMultiplier();
+            const rawDamage = Math.floor(attacker.stats.atk * multiplier);
+            const blockReduction = target.isBlocking ? 0.5 : 1;
+            const finalDamage = Math.max(1, Math.floor((rawDamage - target.stats.def) * blockReduction));
 
-            target.stats.hp = Math.max(0, target.stats.hp - damage);
+            target.stats.hp = Math.max(0, target.stats.hp - finalDamage);
 
             const verb = getRandomVerb(attackVerbs);
-            const blockedText = target.isBlocking ? ' (GEBLOCKT!)' : '';
-            log.push(`${attacker.emoji} ${attacker.name} ${verb} ${target.emoji} ${target.name} für ${damage} DMG${blockedText}`);
+            const quality = getHitQuality(multiplier);
+            const blockedText = target.isBlocking ? ' [BLOCK]' : '';
+
+            log.push(`${attacker.emoji} ${attacker.name} ${verb} ${target.emoji} ${target.name} für ${finalDamage} DMG${quality}${blockedText}`);
 
             if (target.stats.hp <= 0) {
                 target.isDead = true;
@@ -102,13 +132,15 @@ function executeAction(
             break;
         }
         case 'HEAL': {
-            const healAmount = 8;
+            const multiplier = getVarianceMultiplier();
+            const healAmount = Math.floor(BASE_HEAL_AMOUNT * multiplier);
             const actualHeal = Math.min(healAmount, target.stats.maxHp - target.stats.hp);
             target.stats.hp = Math.min(target.stats.maxHp, target.stats.hp + healAmount);
 
             if (actualHeal > 0) {
                 const verb = getRandomVerb(healVerbs);
-                log.push(`${attacker.emoji} ${attacker.name} ${verb} +${actualHeal} HP`);
+                const quality = getHitQuality(multiplier);
+                log.push(`${attacker.emoji} ${attacker.name} ${verb} +${actualHeal} HP${quality}`);
             } else {
                 log.push(`${attacker.emoji} ${attacker.name} hat schon volle HP!`);
             }
@@ -124,9 +156,10 @@ function executeAction(
     }
 }
 
-/**
- * Process a single unit's turn
- */
+// ==========================================
+// UNIT TURN PROCESSING
+// ==========================================
+
 function processUnitTurn(unit: Unit, state: BattleState, log: string[]): string | null {
     if (unit.isDead) return null;
 
@@ -150,15 +183,36 @@ function processUnitTurn(unit: Unit, state: BattleState, log: string[]): string 
     return null;
 }
 
-/**
- * Check if battle should end
- */
+// ==========================================
+// HUNGER / SUDDEN DEATH MECHANIC
+// ==========================================
+
+function applyHunger(state: BattleState, log: string[]): void {
+    if (state.tick <= HUNGER_START_ROUND) return;
+
+    const hungerDamage = state.tick - HUNGER_START_ROUND;
+    const allLivingUnits = [...state.allies, ...state.enemies].filter(u => !u.isDead);
+
+    log.push(`🔥 HUNGER setzt ein! Alle nehmen ${hungerDamage} Schaden!`);
+
+    for (const unit of allLivingUnits) {
+        unit.stats.hp = Math.max(0, unit.stats.hp - hungerDamage);
+        if (unit.stats.hp <= 0) {
+            unit.isDead = true;
+            log.push(`💀 ${unit.emoji} ${unit.name} verhungert!`);
+        }
+    }
+}
+
+// ==========================================
+// BATTLE END CHECK
+// ==========================================
+
 function checkBattleEnd(state: BattleState): 'VICTORY' | 'DEFEAT' | 'ROOM_CLEARED' | 'FIGHTING' {
     const alliesAlive = state.allies.some(u => !u.isDead);
     const enemiesAlive = state.enemies.some(u => !u.isDead);
 
     if (!enemiesAlive) {
-        // Check if this was the last room
         if (state.dungeon.room >= state.dungeon.maxRooms) {
             return 'VICTORY';
         }
@@ -168,15 +222,16 @@ function checkBattleEnd(state: BattleState): 'VICTORY' | 'DEFEAT' | 'ROOM_CLEARE
     return 'FIGHTING';
 }
 
-/**
- * Simulates one tick of combat
- */
+// ==========================================
+// MAIN TICK FUNCTION
+// ==========================================
+
 export function simulateTick(state: BattleState): BattleState {
     if (state.status !== 'FIGHTING') {
         return state;
     }
 
-    // Deep clone the state
+    // Deep clone state
     const newState: BattleState = {
         tick: state.tick + 1,
         allies: state.allies.map(u => ({
@@ -196,6 +251,7 @@ export function simulateTick(state: BattleState): BattleState {
 
     newState.log.push(`──── Runde ${newState.tick} ────`);
 
+    // Process units by speed
     const allUnits = [...newState.allies, ...newState.enemies]
         .filter(u => !u.isDead)
         .sort((a, b) => b.stats.speed - a.stats.speed);
@@ -206,7 +262,6 @@ export function simulateTick(state: BattleState): BattleState {
         const battleResult = checkBattleEnd(newState);
         if (battleResult !== 'FIGHTING') {
             newState.status = battleResult;
-
             if (battleResult === 'VICTORY') {
                 newState.log.push(`🎉 SIEG! Der Dungeon wurde bezwungen!`);
             } else if (battleResult === 'ROOM_CLEARED') {
@@ -214,18 +269,33 @@ export function simulateTick(state: BattleState): BattleState {
             } else {
                 newState.log.push(`😿 NIEDERLAGE! Versuch es nochmal...`);
             }
-            break;
+            return newState;
+        }
+    }
+
+    // Apply hunger after all actions (Sudden Death mechanic)
+    applyHunger(newState, newState.log);
+
+    // Check battle end again after hunger
+    const postHungerResult = checkBattleEnd(newState);
+    if (postHungerResult !== 'FIGHTING') {
+        newState.status = postHungerResult;
+        if (postHungerResult === 'VICTORY') {
+            newState.log.push(`🎉 SIEG! Der Dungeon wurde bezwungen!`);
+        } else if (postHungerResult === 'ROOM_CLEARED') {
+            newState.log.push(`✨ Raum ${newState.dungeon.room} geschafft!`);
+        } else {
+            newState.log.push(`😿 NIEDERLAGE durch Hunger...`);
         }
     }
 
     return newState;
 }
 
-/**
- * Advance to the next room in the dungeon
- * - Heals the player for 30% of max HP
- * - Spawns new enemies for the next room
- */
+// ==========================================
+// ROOM TRANSITION
+// ==========================================
+
 export function nextRoom(state: BattleState): BattleState {
     if (state.status !== 'ROOM_CLEARED') {
         return state;
@@ -233,11 +303,9 @@ export function nextRoom(state: BattleState): BattleState {
 
     const newRoom = state.dungeon.room + 1;
 
-    // Deep clone allies and heal them
     const healedAllies = state.allies.map(u => {
         const healAmount = Math.floor(u.stats.maxHp * 0.3);
         const newHp = Math.min(u.stats.maxHp, u.stats.hp + healAmount);
-        const actualHeal = newHp - u.stats.hp;
 
         return {
             ...u,
