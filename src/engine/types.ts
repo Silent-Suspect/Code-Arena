@@ -36,10 +36,27 @@ export interface Unit {
     lastTriggeredGambitId: string | null; // For UI feedback
 }
 
+// Character template for player selection
+export interface Persona {
+    id: string;
+    name: string;
+    emoji: string;
+    description: string;
+    baseStats: Unit['stats'];
+    initialGambits: Gambit[];
+}
+
+// Dungeon progress tracking
+export interface DungeonState {
+    room: number; // Current room (1-based)
+    maxRooms: number; // Total rooms in dungeon
+}
+
 export interface BattleState {
     tick: number; // Time counter
     allies: Unit[];
     enemies: Unit[];
     log: string[]; // Combat log for the UI
-    status: 'PREPARATION' | 'FIGHTING' | 'VICTORY' | 'DEFEAT';
+    status: 'PREPARATION' | 'FIGHTING' | 'VICTORY' | 'DEFEAT' | 'ROOM_CLEARED';
+    dungeon: DungeonState;
 }
