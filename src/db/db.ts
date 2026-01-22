@@ -27,7 +27,7 @@ export { db };
 
 // Helper functions
 export async function saveRun(run: Omit<Run, 'id'>): Promise<number> {
-    return await db.runs.add(run);
+    return await db.runs.add(run) as number;
 }
 
 export async function updateRun(id: number, updates: Partial<Run>): Promise<void> {
